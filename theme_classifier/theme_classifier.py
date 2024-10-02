@@ -22,7 +22,7 @@ class ThemeClassifier():
 
     def load_model(self,device):
         theme_classifier = pipeline(
-            "zero-shot-classifier",
+            "zero-shot-classification",
             model=self.model_name,
             device=device
         )
