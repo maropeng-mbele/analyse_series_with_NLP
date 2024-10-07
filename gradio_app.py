@@ -52,8 +52,7 @@ def main():
                         get_themes_button = gr.Button("Get Themes")
                         get_themes_button.click(get_themes, inputs=[theme_list,subtitles_path,save_path], outputs=[plot])
 
-    # Character Network Section                   
-    with gr.Blocks() as iface:
+        # Character Network Section                   
         with gr.Row():
             with gr.Column():
                 gr.HTML("<h1>Character Network (NERs and Graphs)</h1>")
