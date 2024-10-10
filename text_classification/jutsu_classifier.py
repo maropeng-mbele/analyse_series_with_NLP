@@ -75,7 +75,6 @@ class JutsuClassifier():
             output_dir = self.model_path,
             learning_rate=2e-4,
             per_device_train_batch_size=8,
-            per_device_test_batch_size=8,
             per_device_eval_batch_size=8,
             num_train_epochs=5,
             weight_decay=0.01,
