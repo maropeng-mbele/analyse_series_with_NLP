@@ -9,9 +9,8 @@ def compute_metrics(eval_pred):
     return metric.compute(predictions=predictions, references=labels)
 
 def get_class_weights(df):
-    class_labels = np.array(sorted(df['label'].unique().tolist()))  # Convert to numpy array
     class_weights = compute_class_weight("balanced",
-                        classes = class_labels,
+                        classes = sorted(df['label'].unique().tolist()),
                         y = df['label'].tolist()
                         )
     return class_weights

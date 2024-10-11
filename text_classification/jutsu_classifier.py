@@ -39,7 +39,7 @@ class JutsuClassifier():
 
         self.huggingface_token = huggingface_token
         if self.huggingface_token is not None:
-            huggingface_hub.login(token=self.huggingface_token)
+            huggingface_hub.login(self.huggingface_token)
 
         self.tokenizer = self.load_tokenizer()
 
@@ -80,7 +80,7 @@ class JutsuClassifier():
             weight_decay=0.01,
             evaluation_strategy="epoch",
             logging_strategy="epoch",
-            push_to_hub=True
+            push_to_hub=True,
         )
 
         trainer = CustomTrainer(
@@ -120,7 +120,7 @@ class JutsuClassifier():
         df = pd.read_json(data_path,lines=True)
         df['jutsu_type_simplified'] = df['jutsu_type'].apply(self.simplify_justu)
         df['text'] = df['jutsu_name'] + ". " + df['jutsu_description']
-        df['jutsu'] = df['jutsu_type_simplified']
+        df[self.label_column_name] = df['jutsu_type_simplified']
         df= df[['text', self.label_column_name]]
         df = df.dropna()
 
@@ -170,5 +170,5 @@ class JutsuClassifier():
     
     def classify_jutsu(self,text):
         model_output = self.model(text)
-        predictions = self.postprocess(model_output)
+        predictions =self.postprocess(model_output)
         return predictions
