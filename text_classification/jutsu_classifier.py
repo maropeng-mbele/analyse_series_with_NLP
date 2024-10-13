@@ -90,7 +90,7 @@ class JutsuClassifier():
             eval_dataset = test_data,
             tokenizer = self.tokenizer,
             data_collator=data_collator,
-            compute_metrics=compute_metrics
+            compute_metrics= compute_metrics
         )
 
         trainer.set_device(self.device)
@@ -133,7 +133,7 @@ class JutsuClassifier():
         le.fit(df[self.label_column_name].tolist())
 
         label_dict = {index:label_name for index, label_name in enumerate(le.__dict__['classes_'].tolist())}
-        self.label_dict= label_dict
+        self.label_dict = label_dict
         df['label'] = le.transform(df[self.label_column_name].tolist())
 
         # Train/Test Split
