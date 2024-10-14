@@ -13,7 +13,7 @@ from sklearn.model_selection import train_test_split
 from datasets import Dataset
 import gc
 from .cleaner import Cleaner
-from .training_utils import get_class_weights,compute_metrics
+from .training_utils import get_class_weights, compute_metrics
 from .custom_trainer import CustomTrainer
 
 class JutsuClassifier():
@@ -22,12 +22,12 @@ class JutsuClassifier():
                  data_path=None,
                  text_column_name='text',
                  label_column_name='jutsu',
-                 model_name = "distilbert/distilbert-base-uncased",
+                 model_name="distilbert/distilbert-base-uncased",
                  test_size=0.2,
                  num_labels=3,
-                 huggingface_token = None
+                 huggingface_token=None
                  ):
-        
+
         self.model_path = model_path
         self.data_path = data_path
         self.text_column_name = text_column_name
@@ -44,11 +44,13 @@ class JutsuClassifier():
         self.tokenizer = self.load_tokenizer()
 
         if not huggingface_hub.repo_exists(self.model_path):
+            # Create the repository on Hugging Face if it doesn't exist
+            huggingface_hub.create_repo(self.model_path)
 
-            # check if the data path is provided
+            # Check if the data path is provided
             if data_path is None:
-                raise ValueError("Data path is required to train the model,since the model path does not exist in huggingface hub")
-            
+                raise ValueError("Data path is required to train the model, since the model path does not exist in Hugging Face Hub")
+
             train_data, test_data = self.load_data(self.data_path)
             train_data_df = train_data.to_pandas()
             test_data_df = test_data.to_pandas()
@@ -56,23 +58,25 @@ class JutsuClassifier():
             all_data = pd.concat([train_data_df, test_data_df]).reset_index(drop=True)
             class_weights = get_class_weights(all_data)
 
+            # Train and push the model to the Hub
             self.train_model(train_data, test_data, class_weights)
 
         self.model = self.load_model(self.model_path)
 
-    def load_model(self,model_path):
+    def load_model(self, model_path):
         model = pipeline('text-classification', model=model_path, return_all_scores=True)
         return model
 
-    def train_model(self, train_data,test_data,class_weights):
-        model = AutoModelForSequenceClassification.from_pretrained(self.model_name,
-                                                                   num_labels=self.num_labels,
-                                                                   id2label=self.label_dict,
-                                                                   )
+    def train_model(self, train_data, test_data, class_weights):
+        model = AutoModelForSequenceClassification.from_pretrained(
+            self.model_name,
+            num_labels=self.num_labels,
+            id2label=self.label_dict,
+        )
         data_collator = DataCollatorWithPadding(tokenizer=self.tokenizer)
 
         training_args = TrainingArguments(
-            output_dir = self.model_path,
+            output_dir=self.model_path,
             learning_rate=2e-4,
             per_device_train_batch_size=8,
             per_device_eval_batch_size=8,
@@ -80,17 +84,17 @@ class JutsuClassifier():
             weight_decay=0.01,
             evaluation_strategy="epoch",
             logging_strategy="epoch",
-            push_to_hub=True,
+            push_to_hub=True,  # Pushes the model to Hugging Face Hub
         )
 
         trainer = CustomTrainer(
             model=model,
             args=training_args,
-            train_dataset = train_data,
-            eval_dataset = test_data,
-            tokenizer = self.tokenizer,
+            train_dataset=train_data,
+            eval_dataset=test_data,
+            tokenizer=self.tokenizer,
             data_collator=data_collator,
-            compute_metrics= compute_metrics
+            compute_metrics=compute_metrics
         )
 
         trainer.set_device(self.device)
@@ -98,8 +102,15 @@ class JutsuClassifier():
 
         trainer.train()
 
-        # Flush Memory
-        del trainer,model
+        # Save the model and tokenizer locally
+        model.save_pretrained(self.model_path)
+        self.tokenizer.save_pretrained(self.model_path)
+
+        # Push the model to Hugging Face Hub
+        trainer.push_to_hub()
+
+        # Flush memory
+        del trainer, model
         gc.collect()
 
         if self.device == 'cuda':
@@ -112,37 +123,36 @@ class JutsuClassifier():
             return 'Taijutsu'
         if 'Ninjutsu' in jutsu:
             return 'Ninjutsu'
-        
-    def preprocess_function(self,tokenizer,examples):
+
+    def preprocess_function(self, tokenizer, examples):
         return tokenizer(examples["text_cleaned"], truncation=True)
 
-    def load_data(self,data_path):
-        df = pd.read_json(data_path,lines=True)
+    def load_data(self, data_path):
+        df = pd.read_json(data_path, lines=True)
         df['jutsu_type_simplified'] = df['jutsu_type'].apply(self.simplify_justu)
         df['text'] = df['jutsu_name'] + ". " + df['jutsu_description']
         df[self.label_column_name] = df['jutsu_type_simplified']
-        df= df[['text', self.label_column_name]]
+        df = df[['text', self.label_column_name]]
         df = df.dropna()
 
         # Clean text
         cleaner = Cleaner()
         df['text_cleaned'] = df[self.text_column_name].apply(cleaner.clean)
 
-        # Encode Labels
+        # Encode labels
         le = preprocessing.LabelEncoder()
         le.fit(df[self.label_column_name].tolist())
 
-        label_dict = {index:label_name for index, label_name in enumerate(le.__dict__['classes_'].tolist())}
+        label_dict = {index: label_name for index, label_name in enumerate(le.__dict__['classes_'].tolist())}
         self.label_dict = label_dict
         df['label'] = le.transform(df[self.label_column_name].tolist())
 
-        # Train/Test Split
-        test_size = 0.2
-        df_train,df_test = train_test_split(df,
-                                            test_size=test_size,
-                                            stratify=df['label'])
-        
-        # Conver Pandas to a hugging face dataset
+        # Train/test split
+        df_train, df_test = train_test_split(df,
+                                             test_size=self.test_size,
+                                             stratify=df['label'])
+
+        # Convert pandas to Hugging Face dataset
         train_dataset = Dataset.from_pandas(df_train)
         test_dataset = Dataset.from_pandas(df_test)
 
@@ -150,8 +160,8 @@ class JutsuClassifier():
         tokenized_train = train_dataset.map(lambda examples: self.preprocess_function(self.tokenizer, examples),
                                             batched=True)
         tokenized_test = test_dataset.map(lambda examples: self.preprocess_function(self.tokenizer, examples),
-                                            batched=True)
-        
+                                          batched=True)
+
         return tokenized_train, tokenized_test
 
     def load_tokenizer(self):
@@ -160,15 +170,15 @@ class JutsuClassifier():
         else:
             tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         return tokenizer
-    
-    def postprocess(self,model_output):
-        output=[]
+
+    def postprocess(self, model_output):
+        output = []
         for pred in model_output:
             label = max(pred, key=lambda x: x['score'])['label']
             output.append(label)
         return output
-    
-    def classify_jutsu(self,text):
+
+    def classify_jutsu(self, text):
         model_output = self.model(text)
-        predictions =self.postprocess(model_output)
+        predictions = self.postprocess(model_output)
         return predictions
