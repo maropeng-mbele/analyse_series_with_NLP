@@ -46,6 +46,7 @@ def classify_text(text_classification_model,text_classification_data_path,text_t
                                        huggingface_token = os.getenv('huggingface_token'))
     
     output = jutsu_classifier.classify_jutsu(text_to_classify)
+    output = output[0]
     
     return output
 
@@ -65,7 +66,7 @@ def main():
                         get_themes_button = gr.Button("Get Themes")
                         get_themes_button.click(get_themes, inputs=[theme_list,subtitles_path,save_path], outputs=[plot])
 
-        # Character Network Section                   
+        # Text Classification with LLMs                    
         with gr.Row():
             with gr.Column():
                 gr.HTML("<h1>Text Classification with LLMs</h1>")
@@ -79,7 +80,7 @@ def main():
                         classify_text_button = gr.Button("Classify Text (Jutsu)")
                         classify_text_button.click(classify_text, inputs=[text_classification_model,text_classification_data_path,text_to_classify], outputs=[text_classification_output])
 
-        # Text Classification with LLMs                   
+        # Character Network Section                   
         with gr.Row():
             with gr.Column():
                 gr.HTML("<h1>Character Network (NERs and Graphs)</h1>")
